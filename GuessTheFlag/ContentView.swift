@@ -33,16 +33,19 @@ struct ContentView: View {
     // @State: allows a view to re-render when the data changes. The view struct itself is still immutable, but the @State property can change, triggering a refresh of the view's body.
     @State var countries = ["Estonia", "France", "Germany", "Ireland", "Italy", "Nigeria", "Poland", "Spain", "UK", "Ukraine", "US"].shuffled()
     @State var correctAnswer = Int.random(in: 0...2)
-    
+    @State private var playerScore = 0
     @State private var showingScore = false
     @State private var scoreTitle = ""
     //This means showingScore and scoreTitle are mutable pieces of data that's external to the ContentView struct.
     //The struct itself doesn't change; rather, SwiftUI watches for changes and recreates the body of ContentView when changes.
     
-    @State private var playerScore = 0
-    
     @State private var endGame = false
     @State private var roundCount = 1
+    @State private var showEndGameAlert = false
+    
+    // originally used a single rotationAmount but that rotated all the flags once one was pressed.. because this var was being shared across all flags so when it changes, all flags reflect that change
+    @State private var rotationAmounts = [0.0, 0.0, 0.0]
+    @State private var opacities = [1.0, 1.0, 1.0]
     
     //  body: The body property is a crucial part of the View protocol. It's where you define the view's content and layout. SwiftUI expects every view to have a body property that returns some view. This returned view can be a combination of other views, like Text, Button, etc.
     var body: some View {
@@ -91,7 +94,11 @@ struct ContentView: View {
                                 .flagStyle()
                                 /*.clipShape(.capsule)*/ // gives round edges
                                 /*.shadow(radius: 5)*/ // gives tiny shadow, if no color specified its a light black color
+                                .opacity(opacities[number])
                         }
+                        .rotation3DEffect(
+                            .degrees(rotationAmounts[number]), axis: /*@START_MENU_TOKEN@*/(x: 0.0, y: 1.0, z: 0.0)/*@END_MENU_TOKEN@*/
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -101,13 +108,14 @@ struct ContentView: View {
                 
                 // remember spacers divide themselves up evenly. if we have four spacer() in this stack, they will take all the remaining space left, divide that space by four, and give each space one quarter.
                 Spacer()
-                Spacer()
                 
                 Text("Score: \(playerScore)")
                     .foregroundStyle(.white)
                     .font(.title.bold())
                 
-                Spacer()
+                Text("Round: \(roundCount) of 8")
+                    .foregroundStyle(.white)
+                    .font(.caption)
             }
             .padding()
         }
@@ -115,7 +123,13 @@ struct ContentView: View {
         // we show alerts by making their isPresented condition true
         // reminder that $ denotes binding to a state variable, a binding provides both read and write access to the variable.You use $ when you want to create a two-way connection between a SwiftUI control and a state variable. This means that changes to the control's value will update the state variable and vice versa.
         .alert(scoreTitle, isPresented: $showingScore) {
-            Button("Continue", action: askQuestion)
+            Button("Continue", action: {
+                askQuestion()
+                if showEndGameAlert {
+                    endGame = true
+                    showEndGameAlert = false
+                }
+            })
         } message: {
             //  There's no need for a binding to playerScore since you're only displaying the value, not modifying it. you use the variable without $ when you need to read its value or pass its value to a function or a control that doesn't require a Binding.
             Text("Your score is \(playerScore)")
@@ -136,6 +150,11 @@ struct ContentView: View {
         if number == correctAnswer {
             scoreTitle = "Correct"
             playerScore += 1
+            // spin only if correct flag chosen
+            withAnimation(.spring(duration:1, bounce: 0.5)) {
+                rotationAmounts[number] += 360
+                opacities = opacities.indices.map { $0 == number ? 1.0 : 0.25 }
+            }
         } else {
             scoreTitle = "Wrong! Thats the flag of \(countries[number])"
         }
@@ -146,8 +165,8 @@ struct ContentView: View {
         } else {
             // show result of the last answer first
             showingScore = true
-            // set flag for end game alert
-            endGame = true
+            // set flag to show end game alert
+            showEndGameAlert = true
         }
     }
     
@@ -155,6 +174,7 @@ struct ContentView: View {
         if !endGame {
             countries.shuffle()
             correctAnswer = Int.random(in: 0...2)
+            opacities = [1.0, 1.0, 1.0]
         }
     }
     
